@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -126,6 +127,7 @@ func TestUploadReadFrom(t *testing.T) {
 	defer c()
 
 	blobUpload := &httpBlobUpload{
+		ctx:    context.Background(),
 		client: &http.Client{},
 	}
 
