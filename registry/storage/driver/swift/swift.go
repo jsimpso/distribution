@@ -345,7 +345,7 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 		//if this is a DLO and it is clear that segments are still missing,
 		//wait until they show up
 		_, isDLO := headers["X-Object-Manifest"]
-		size, err := file.Length()
+		size, err := file.Length(ctx)
 		if err != nil {
 			return file, err
 		}
@@ -396,7 +396,7 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 			segments = []swift.Object{info}
 		} else {
 			_, segmentsPath = parseManifest(manifest)
-			if segments, err = d.getAllSegments(segmentsPath); err != nil {
+			if segments, err = d.getAllSegments(ctx, segmentsPath); err != nil {
 				return nil, err
 			}
 		}
@@ -503,7 +503,7 @@ func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) e
 	_, headers, err := d.Conn.Object(ctx, d.Container, d.swiftPath(sourcePath))
 	if err == nil {
 		if manifest, ok := headers["X-Object-Manifest"]; ok {
-			if err = d.createManifest(destPath, manifest); err != nil {
+			if err = d.createManifest(ctx, destPath, manifest); err != nil {
 				return err
 			}
 			err = d.Conn.ObjectDelete(ctx, d.Container, d.swiftPath(sourcePath))
@@ -544,7 +544,7 @@ func (d *driver) Delete(ctx context.Context, path string, committing bool) error
 			manifest, ok := headers["X-Object-Manifest"]
 			if !committing && ok {
 				_, prefix := parseManifest(manifest)
-				segments, err := d.getAllSegments(prefix)
+				segments, err := d.getAllSegments(ctx, prefix)
 				if err != nil {
 					return err
 				}
@@ -649,7 +649,7 @@ func (d *driver) URLFor(ctx context.Context, path string, options map[string]int
 		}
 	}
 
-	tempURL := d.Conn.ObjectTempUrl(ctx, d.Container, d.swiftPath(path), d.SecretKey, methodString, expiresTime)
+	tempURL := d.Conn.ObjectTempUrl(d.Container, d.swiftPath(path), d.SecretKey, methodString, expiresTime)
 
 	if d.AccessKey != "" {
 		// On HP Cloud, the signature must be in the form of tenant_id:access_key:signature
@@ -846,7 +846,7 @@ func (w *writer) Close() error {
 	}
 
 	if !w.committed && !w.cancelled {
-		if err := w.driver.createManifest(w.path, w.driver.Container+"/"+w.segmentsPath); err != nil {
+		if err := w.driver.createManifest(context.Background(), w.path, w.driver.Container+"/"+w.segmentsPath); err != nil {
 			return err
 		}
 		if err := w.waitForSegmentsToShowUp(); err != nil {
@@ -881,7 +881,7 @@ func (w *writer) Commit() error {
 		return err
 	}
 
-	if err := w.driver.createManifest(w.path, w.driver.Container+"/"+w.segmentsPath); err != nil {
+	if err := w.driver.createManifest(context.Background(), w.path, w.driver.Container+"/"+w.segmentsPath); err != nil {
 		return err
 	}
 
@@ -896,7 +896,7 @@ func (w *writer) waitForSegmentsToShowUp() error {
 
 	for {
 		var info swift.Object
-		if info, _, err = w.driver.Conn.Object(w.driver.Container, w.driver.swiftPath(w.path)); err == nil {
+		if info, _, err = w.driver.Conn.Object(context.Background(), w.driver.Container, w.driver.swiftPath(w.path)); err == nil {
 			if info.Bytes == w.size {
 				break
 			}
@@ -927,7 +927,7 @@ func (sw *segmentWriter) Write(p []byte) (int, error) {
 		if offset+chunkSize > len(p) {
 			chunkSize = len(p) - offset
 		}
-		_, err := sw.conn.ObjectPut(sw.container, getSegmentPath(sw.segmentsPath, sw.segmentNumber), bytes.NewReader(p[offset:offset+chunkSize]), false, "", contentType, nil)
+		_, err := sw.conn.ObjectPut(context.Background(), sw.container, getSegmentPath(sw.segmentsPath, sw.segmentNumber), bytes.NewReader(p[offset:offset+chunkSize]), false, "", contentType, nil)
 		if err != nil {
 			return n, err
 		}
