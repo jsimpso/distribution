@@ -183,7 +183,7 @@ func FromParameters(parameters map[string]interface{}) (*Driver, error) {
 }
 
 // New constructs a new Driver with the given Openstack Swift credentials and container name
-func New(ctx context.Context, params Parameters) (*Driver, error) {
+func New(params Parameters) (*Driver, error) {
 	transport := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
 		MaxIdleConnsPerHost: 2048,
@@ -209,6 +209,7 @@ func New(ctx context.Context, params Parameters) (*Driver, error) {
 		ConnectTimeout: 60 * time.Second,
 		Timeout:        15 * 60 * time.Second,
 	}
+	ctx := context.Background()
 	err := ct.Authenticate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("swift authentication failed: %s", err)
